@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Canteen App</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div>Canteen App</div>
+    <div class="logout" onclick="logout()">Logout</div>
+  </div>
+
+  <!-- USER INFO -->
+  <div id="userInfo"></div>
+
+  <!-- WALLET -->
+  <div class="card">
+    <h3>Add Money</h3>
+    <input id="money" placeholder="Amount">
+    <button onclick="addMoney()">Add</button>
+  </div>
+
+  <!-- MENU -->
+  <div class="card">
+    <h3>Menu</h3>
+    <div id="menu"></div>
+  </div>
+
+  <!-- CART -->
+  <div class="card">
+    <h3>Cart</h3>
+    <ul id="cart"></ul>
+    <p id="total"></p>
+    <button class="order-btn" onclick="placeOrder()">Order Now</button>
+  </div>
+
+  <!-- PAST ORDERS -->
+  <div class="card">
+    <h3>Past Orders</h3>
+    <ul id="orders"></ul>
+  </div>
+
+  <!-- RESULT -->
+  <h3 id="orderResult"></h3>
+
+</div>
+
+<script>
+
+// USER
+let user = JSON.parse(localStorage.getItem("user"));
+
+if (!user) {
+  alert("Please login first");
+  window.location.href = "index.html";
+}
+
+// ================= FETCH ORDERS =================
+function fetchOrders() {
+  fetch(`http://192.168.79.1:3000/user-orders/${user.id}`)
+    .then(res => res.json())
+    .then(data => {
+
+      const list = document.getElementById("orders");
+      list.innerHTML = "";
+
+      const tokens = Object.keys(data);
+
+      if (tokens.length === 0) {
+        list.innerHTML = "<p>No orders yet</p>";
+        return;
+      }
+
+      tokens.forEach(token => {
+        const order = data[token];
+
+        const li = document.createElement("li");
+
+        li.innerText =
+          `Token ${token} | ${order.items.join(", ")} | ${order.final_status.toUpperCase()} | ${new Date(order.time).toLocaleString()}`;
+
+        list.appendChild(li);
+      });
+    });
+}
+
+// LOGOUT
+function logout() {
+  localStorage.removeItem("user");
+  window.location.href = "index.html";
+}
+
+// UPDATE USER INFO
+function updateUserInfo() {
+  document.getElementById("userInfo").innerText =
+    `Name: ${user.name} | Balance: ₹${user.wallet_balance} | User ID: ${user.id}`;
+}
+
+// ================= FETCH MENU =================
+function fetchMenu() {
+  fetch("http://192.168.79.1:3000/products")
+    .then(res => res.json())
+    .then(data => {
+      const menuDiv = document.getElementById("menu");
+      menuDiv.innerHTML = "";
+
+      data.forEach(product => {
+
+        const div = document.createElement("div");
+        div.className = "menu-item";
+
+        div.innerHTML = `
+          <b>${product.name}</b><br>
+          ₹${product.price} | Stock: ${product.stock}
+          
+          <input type="number" id="qty_${product.id}" value="1" min="1">
+
+          <button onclick="addToCart('${product.name}', ${product.price}, 'qty_${product.id}')">
+            Add to Cart
+          </button>
+        `;
+
+        menuDiv.appendChild(div);
+      });
+    });
+}
+
+// ================= FETCH USER =================
+function fetchUser() {
+  fetch(`http://192.168.79.1:3000/user/${user.id}`)
+    .then(res => res.json())
+    .then(data => {
+      user = data;
+      localStorage.setItem("user", JSON.stringify(user));
+      updateUserInfo();
+    });
+}
+
+// INIT
+fetchUser();
+fetchOrders();
+fetchMenu();
+
+// ================= CART =================
+let cart = [];
+
+function addToCart(item, price, qtyId) {
+  const qty = Number(document.getElementById(qtyId).value);
+
+  const existing = cart.find(c => c.item === item);
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    cart.push({ item, price, qty });
+  }
+
+  renderCart();
+}
+
+function renderCart() {
+  const list = document.getElementById("cart");
+  list.innerHTML = "";
+
+  let total = 0;
+
+  cart.forEach((c, index) => {
+    total += c.price * c.qty;
+
+    const li = document.createElement("li");
+
+    li.innerHTML = `
+      <b>${c.item}</b><br>
+      Qty: ${c.qty} | ₹${c.price * c.qty}
+
+      <div style="display:flex; gap:6px; margin-top:6px;">
+        <button class="small" onclick="increaseQty(${index})">+</button>
+        <button class="small" onclick="decreaseQty(${index})">-</button>
+        <button class="small danger" onclick="removeItem(${index})">Remove</button>
+      </div>
+    `;
+
+    list.appendChild(li);
+  });
+
+  document.getElementById("total").innerText = "Total: ₹" + total;
+}
+
+function increaseQty(i) { cart[i].qty++; renderCart(); }
+function decreaseQty(i) {
+  cart[i].qty--;
+  if (cart[i].qty <= 0) cart.splice(i, 1);
+  renderCart();
+}
+function removeItem(i) { cart.splice(i, 1); renderCart(); }
+
+// ================= ADD MONEY =================
+function addMoney() {
+  const amount = document.getElementById("money").value;
+
+  fetch("http://192.168.79.1:3000/add-money", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id: user.id, amount })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    fetchUser();
+  });
+}
+
+// ================= ORDER =================
+function placeOrder() {
+
+  if (cart.length === 0) {
+    alert("Cart is empty");
+    return;
+  }
+
+  if (!confirm("⚠️ Strictly no refund after placing order. Continue?")) return;
+
+  fetch("http://192.168.79.1:3000/generate-token")
+    .then(res => res.json())
+    .then(data => {
+
+      const token = data.token;
+
+      fetch("http://192.168.79.1:3000/order", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          user_id: user.id,
+          cart: cart,
+          token: token
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+
+        if (!data.success) {
+          alert(data.message);
+          return;
+        }
+
+        fetchUser();
+        fetchOrders();
+
+        document.getElementById("orderResult").innerText =
+          `Order Confirmed!\nToken: ${token}\nUser ID: ${user.id}\n\n⏱ You have 20 minutes to pick up your order`;
+
+        cart = [];
+        renderCart();
+      });
+
+    });
+}
+
+</script>
+
+</body>
+</html>

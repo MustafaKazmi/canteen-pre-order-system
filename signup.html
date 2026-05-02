@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign Up</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+
+<body>
+
+<div class="auth-container">
+  <div class="auth-card">
+
+    <div class="auth-title">Sign Up</div>
+
+    <input id="name" placeholder="Name">
+
+    <input id="phone" placeholder="Phone Number" oninput="checkPhone()">
+    <button id="otpBtn" class="otp-btn" onclick="sendOTP()" disabled>Send OTP</button>
+
+    <input id="otp" placeholder="Enter OTP">
+
+    <input id="password" type="password" placeholder="Password">
+
+    <button onclick="signup()">Create Account</button>
+
+    <div class="auth-switch">
+      Already a user?
+      <button onclick="goToLogin()">Login</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+
+// ENABLE OTP BUTTON ONLY WHEN 10 DIGITS
+function checkPhone() {
+  const phone = document.getElementById("phone").value;
+  document.getElementById("otpBtn").disabled = phone.length !== 10;
+}
+
+// SEND OTP
+function sendOTP() {
+  const phone = document.getElementById("phone").value;
+
+  fetch("http://localhost:3000/send-otp", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ phone })
+  })
+  .then(res => res.json())
+  .then(() => {
+    alert("OTP sent (check terminal)");
+  });
+}
+
+// SIGNUP
+function signup() {
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const otp = document.getElementById("otp").value.trim();
+
+  // ✅ FRONTEND VALIDATION
+  if (!name || !phone || !password || !otp) {
+    alert("Please fill all fields");
+    return;
+  }
+
+  if (phone.length !== 10) {
+    alert("Phone number must be 10 digits");
+    return;
+  }
+
+  fetch("http://localhost:3000/signup", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ name, phone, password, otp })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) {
+      alert(data.message);
+      return;
+    }
+
+    alert("Signup successful! Your User ID: " + data.user_id);
+    window.location.href = "index.html";
+  });
+}
+
+// BACK TO LOGIN
+function goToLogin() {
+  window.location.href = "index.html";
+}
+
+</script>
+
+</body>
+</html>
