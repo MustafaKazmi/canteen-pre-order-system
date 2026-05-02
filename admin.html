@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel</title>
+</head>
+<body>
+
+<h2>Admin Panel</h2>
+
+<!-- ADD PRODUCT -->
+<h3>Add Product</h3>
+<input id="name" placeholder="Name">
+<input id="price" placeholder="Price">
+<input id="stock" placeholder="Stock">
+<button onclick="addProduct()">Add</button>
+
+<hr>
+
+<!-- PRODUCT LIST -->
+<h3>Products</h3>
+<ul id="products"></ul>
+
+<hr>
+
+<!-- ORDERS -->
+<h3>Orders</h3>
+<ul id="orders"></ul>
+
+<script>
+
+const BASE = "http://localhost:3000";
+
+// ================= ADD PRODUCT =================
+function addProduct() {
+  const name = document.getElementById("name").value;
+  const price = document.getElementById("price").value;
+  const stock = document.getElementById("stock").value;
+
+  fetch(BASE + "/add-product", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ name, price, stock })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    fetchProducts();
+  });
+}
+
+// ================= FETCH PRODUCTS =================
+function fetchProducts() {
+  fetch(BASE + "/products")
+    .then(res => res.json())
+    .then(data => {
+      const list = document.getElementById("products");
+      list.innerHTML = "";
+
+      data.forEach(p => {
+
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+          ${p.name} ₹${p.price} | Stock: 
+          <input type="number" value="${p.stock}" id="stock_${p.id}" style="width:60px">
+          
+          <button onclick="updateStock(${p.id})">Set</button>
+          <button onclick="changeStock(${p.id}, 1)">+</button>
+          <button onclick="changeStock(${p.id}, -1)">-</button>
+        `;
+
+        list.appendChild(li);
+      });
+    });
+}
+
+// ================= FETCH ORDERS =================
+function fetchOrders() {
+  fetch(BASE + "/admin-orders")
+    .then(res => res.json())
+    .then(data => {
+
+      const list = document.getElementById("orders");
+      list.innerHTML = "";
+
+      const grouped = {};
+
+      data.forEach(o => {
+        if (!grouped[o.token]) {
+          grouped[o.token] = [];
+        }
+        grouped[o.token].push(o);
+      });
+
+      Object.keys(grouped).forEach(token => {
+
+        const li = document.createElement("li");
+        li.style.marginBottom = "15px";
+
+        const title = document.createElement("div");
+        title.innerText = `Token ${token}`;
+        title.style.fontWeight = "bold";
+
+        li.appendChild(title);
+
+        let orderId = null;
+        let orderStatus = null;
+
+        grouped[token].forEach(item => {
+
+          if (!orderId) orderId = item.order_id;
+          if (!orderStatus) orderStatus = item.order_status;
+
+          const div = document.createElement("div");
+
+          // ✅ ONLY show cancel if order is NOT given
+          const showCancel =
+            item.item_status === "pending" &&
+            orderStatus !== "given" &&
+            orderStatus !== "picked_up";
+
+          div.innerHTML = `
+            ${item.name} x${item.quantity}
+            ${item.item_status === "cancelled" ? "(cancelled)" : ""}
+            ${
+              showCancel
+              ? `<button onclick="cancelItem(${item.item_id})">Cancel 1</button>`
+              : ""
+            }
+          `;
+
+          li.appendChild(div);
+        });
+
+        // ✅ ONLY show "Mark Given" if not already given
+        if (orderStatus !== "given" && orderStatus !== "picked_up") {
+          const pickupBtn = document.createElement("button");
+          pickupBtn.innerText = "Mark Given";
+          pickupBtn.onclick = () => adminPickup(orderId);
+
+          li.appendChild(pickupBtn);
+        }
+
+        list.appendChild(li);
+      });
+    });
+}
+// ================= CANCEL ITEM =================
+function cancelItem(itemId) {
+  fetch(BASE + "/cancel-item", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ item_id: itemId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    fetchOrders();
+    fetchProducts();
+  });
+}
+
+// ================= ADMIN PICKUP =================
+function adminPickup(orderId) {
+  fetch(BASE + "/admin-pickup", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ order_id: orderId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    fetchOrders();
+  });
+}
+
+// SET STOCK DIRECTLY
+function updateStock(id) {
+  const stock = document.getElementById(`stock_${id}`).value;
+
+  fetch(BASE + "/update-stock", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id, stock })
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.message);
+    fetchProducts();
+  });
+}
+
+// INCREMENT / DECREMENT
+function changeStock(id, change) {
+  const input = document.getElementById(`stock_${id}`);
+  let newStock = Number(input.value) + change;
+
+  if (newStock < 0) newStock = 0;
+
+  fetch(BASE + "/update-stock", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id, stock: newStock })
+  })
+  .then(res => res.json())
+  .then(() => {
+    fetchProducts();
+  });
+}
+
+
+// ================= INIT =================
+fetchProducts();
+fetchOrders();
+
+</script>
+
+</body>
+</html>

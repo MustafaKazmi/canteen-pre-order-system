@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+
+<body>
+
+<div class="auth-container">
+  <div class="auth-card">
+
+    <div class="auth-title">Login</div>
+
+    <input id="phone" placeholder="Phone Number">
+
+    <!-- PASSWORD LOGIN -->
+    <div id="passwordSection">
+      <input id="password" type="password" placeholder="Password">
+      <button onclick="loginWithPassword()">Login</button>
+    </div>
+
+    <button class="secondary" onclick="showOTP()">Login with OTP</button>
+
+    <!-- OTP LOGIN -->
+    <div id="otpSection" style="display:none;">
+      <button class="otp-btn" onclick="sendLoginOTP()">Send OTP</button>
+      <input id="loginOtp" placeholder="Enter OTP">
+      <button onclick="loginWithOTP()">Verify OTP</button>
+    </div>
+
+    <div class="auth-switch">
+      New user?
+      <button onclick="goToSignup()">Sign Up</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// SWITCH TO OTP MODE
+function showOTP() {
+  document.getElementById("passwordSection").style.display = "none";
+  document.getElementById("otpSection").style.display = "block";
+}
+
+// GO TO SIGNUP
+function goToSignup() {
+  window.location.href = "signup.html";
+}
+
+// LOGIN WITH PASSWORD
+function loginWithPassword() {
+  const phone = document.getElementById("phone").value;
+  const password = document.getElementById("password").value;
+
+  fetch("http://localhost:3000/login-password", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ phone, password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.location.href = "app.html";
+    } else {
+      alert(data.message);
+    }
+  });
+}
+
+// SEND OTP
+function sendLoginOTP() {
+  const phone = document.getElementById("phone").value;
+
+  fetch("http://localhost:3000/send-otp", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ phone })
+  })
+  .then(res => res.json())
+  .then(() => {
+    alert("OTP sent (check terminal)");
+  });
+}
+
+// VERIFY OTP
+function loginWithOTP() {
+  const phone = document.getElementById("phone").value;
+  const otp = document.getElementById("loginOtp").value;
+
+  fetch("http://localhost:3000/login-otp", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ phone, otp })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.location.href = "app.html";
+    } else {
+      alert("Invalid OTP");
+    }
+  });
+}
+</script>
+
+</body>
+</html>

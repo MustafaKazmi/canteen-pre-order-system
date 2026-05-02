@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Order History</title>
+</head>
+<body>
+
+<h2>📜 Order History</h2>
+
+<button onclick="goBack()">⬅ Back</button>
+
+<ul id="orders"></ul>
+
+<script>
+
+let user = JSON.parse(localStorage.getItem("user"));
+
+if (!user) {
+  alert("Please login first");
+  window.location.href = "index.html";
+}
+
+// FETCH ORDERS
+function fetchOrders() {
+  fetch(`http://localhost:3000/user-orders/${user.id}`)
+    .then(res => res.json())
+    .then(data => {
+      const list = document.getElementById("orders");
+      list.innerHTML = "";
+
+      if (data.length === 0) {
+        list.innerHTML = "<p>No orders yet</p>";
+        return;
+      }
+
+      data.forEach(order => {
+        const li = document.createElement("li");
+
+        li.innerText =
+          `Token: ${order.token} | Item: ${order.item} | ₹${order.price} | Status: ${order.status || "pending"}`;
+
+        list.appendChild(li);
+      });
+    });
+}
+
+fetchOrders();
+
+// BACK BUTTON
+function goBack() {
+  window.location.href = "app.html";
+}
+
+</script>
+
+</body>
+</html>
