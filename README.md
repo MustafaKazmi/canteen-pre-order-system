@@ -1,86 +1,155 @@
-# Smart Canteen Pre-Order System
+Smart Canteen Pre-Order System
 
-A web-based application that allows students to pre-order food from the canteen, reducing waiting time and improving efficiency during peak hours.
+This is a full-stack Smart Canteen web application that I’ve been building as a practical real-world project with the goal of eventually implementing it in a college canteen.
 
----
+The idea behind this project is simple: reduce waiting time in canteens by allowing students to browse the menu, place orders in advance, pay digitally through an internal wallet, and collect their food using generated tokens.
 
-## Features
+This project is still actively being improved and refined as I continue learning and building.
 
-* User authentication with OTP and password
-* Pre-order food before arriving at the canteen
-* Wallet system for adding balance and making payments
-* Cart system with quantity management
-* Order history with status (PENDING, PICKED_UP, CANCELLED)
-* Token-based order system for pickup
-* Admin panel for:
 
-  * Adding products
-  * Managing stock
-  * Viewing orders
+What the project currently does
 
----
+Students can:
 
-## Tech Stack
+Browse available food items from the menu
+
+Add items to cart with quantity controls
+
+Place prepaid orders using wallet balance
+
+Receive a token number after placing an order
+
+Track order history and status updates
+
+Cancel individual items instead of entire orders
+
+Receive automatic wallet refunds when items are cancelled
+
+Use the system comfortably on mobile devices
+
+
+Admins can:
+
+View incoming orders
+
+Manage product stock
+
+Add new food items
+
+Update stock instantly
+
+Mark orders as picked up
+
+Manage student wallet balances
+
+Search users by phone number for wallet top-ups
+
+Monitor order activity from the admin dashboard
+
+
+Built using
 
 Frontend:
-
-* HTML
-* CSS
-* JavaScript
+HTML
+CSS
+JavaScript
 
 Backend:
-
-* Node.js
-* Express.js
+Node.js
+Express.js
 
 Database:
+MySQL
 
-* MySQL
+Authentication & Security:
+JWT Authentication
+bcrypt
+OTP verification
 
----
 
-## Screenshots
+Project Screenshots
 
-### Signup and OTP Verification
+Login Page
 
-![Signup](./screenshots/signup.png)
+![Login Page](screenshots/login-page.png)
 
-### Menu and Cart System
+Student Dashboard
 
-![Menu](./screenshots/menu.png)
+![Student Dashboard](screenshots/student-dashboard.png)
 
-### Order Confirmation and History
+Cart and Ordering Flow
 
-![Orders](./screenshots/orders.png)
+![Cart](screenshots/cart-view.png)
 
-### Admin Panel
+Order History
 
-![Admin](./screenshots/admin.png)
+![Order History](screenshots/order-history.png)
 
----
+Admin Dashboard
 
-## How to Run
+![Admin Dashboard](screenshots/admin-dashboard.png)
 
-1. Install dependencies:
-   npm install
+Admin Order History
 
-2. Start the server:
-   node server.js
+![Admin Order History](screenshots/admin-order-view.png)
 
-3. Open in browser:
-   http://localhost:3000
 
----
+Project Status
 
-## Project Overview
+This project is actively under development.
 
-This system is designed to reduce queues in college canteens by allowing users to place orders in advance. Each order generates a unique token, enabling quick pickup without waiting in long lines. The admin panel allows canteen staff to manage menu items and stock efficiently.
+Some of the major improvements recently added include:
 
----
+A complete UI redesign with a cleaner mobile-first experience
 
-## Future Improvements
+JWT-based authentication with secure login flow
 
-* Online payment integration
-* Real-time order tracking
-* Notifications for order status
-* Mobile-friendly UI improvements
+Wallet-based payment handling
+
+Admin-controlled wallet top-ups
+
+Live stock validation
+
+Improved cart interactions
+
+Order token generation
+
+Individual item cancellation with automatic refunds
+
+Timeout handling for unclaimed orders
+
+Modern toast notifications replacing browser alerts
+
+Improved admin controls and order handling
+
+
+Planned improvements
+
+Product image uploads
+
+More advanced order states such as Preparing / Ready for Pickup
+
+Admin analytics dashboard
+
+Safer database transaction handling
+
+Production deployment
+
+Further UI polishing
+
+
+Usage Notice
+
+This repository is shared for project showcase and portfolio purposes only.
+
+The code is not licensed for reuse, redistribution, modification, or deployment without explicit permission from the author.
+
+
+About me
+
+Built by Mustafa Kazmi
+
+BCA Student | Frontend Developer | Exploring Backend Development and Cybersecurity
+
+GitHub:
+https://github.com/MustafaKazmi
