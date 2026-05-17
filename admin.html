@@ -1,218 +1,353 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin Panel</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="app.css">
 </head>
+<div id="toast" class="toast"></div>
 <body>
 
-<h2>Admin Panel</h2>
+<script>
+  //alert
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
 
-<!-- ADD PRODUCT -->
-<h3>Add Product</h3>
-<input id="name" placeholder="Name">
-<input id="price" placeholder="Price">
-<input id="stock" placeholder="Stock">
-<button onclick="addProduct()">Add</button>
+  toast.innerText = message;
+  toast.className = `toast show ${type}`;
 
-<hr>
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
+}
+const user = JSON.parse(localStorage.getItem("user"));
+const token = localStorage.getItem("token");
 
-<!-- PRODUCT LIST -->
-<h3>Products</h3>
-<ul id="products"></ul>
+if (!user || !token) {
+  showToast("Please login first", "error");
 
-<hr>
+setTimeout(() => {
+  window.location.href = "index.html";
+}, 1200);
+}
 
-<!-- ORDERS -->
-<h3>Orders</h3>
-<ul id="orders"></ul>
+if (!user.is_admin) {
+  showToast("Unauthorized access", "error");
+
+setTimeout(() => {
+  window.location.href = "app.html";
+}, 1200);
+}
+</script>
+
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero-card">
+    <div class="hero-title">Admin Dashboard</div>
+    <div class="hero-subtitle">Manage products and orders quickly.</div>
+
+    <div class="hero-actions">
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="admin-stats">
+    <div class="stat-card">
+      <div class="menu-meta">Pending</div>
+      <div class="stat-value" id="pendingCount">0</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="menu-meta">Completed</div>
+      <div class="stat-value" id="completedCount">0</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="menu-meta">Cancelled</div>
+      <div class="stat-value" id="cancelledCount">0</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="menu-meta">Products</div>
+      <div class="stat-value" id="productCount">0</div>
+    </div>
+  </div>
+
+  <!-- ADD PRODUCT -->
+  <div class="card" style="padding:20px; margin-bottom:20px;">
+    <h3>Add Product</h3>
+
+    <input id="name" placeholder="Product Name" style="margin-bottom:12px;">
+    <input id="price" type="number" placeholder="Price" style="margin-bottom:12px;">
+    <input id="stock" type="number" placeholder="Stock" style="margin-bottom:12px;">
+
+    <button onclick="addProduct()">Add Product</button>
+  </div>
+
+<div class="card" style="padding:20px; margin-bottom:20px;">
+  <h3>Add Wallet Money</h3>
+
+  <input id="walletPhone" placeholder="Student Phone Number" style="margin-bottom:12px;">
+  <input id="walletAmount" type="number" placeholder="Amount" style="margin-bottom:12px;">
+
+  <button onclick="addWalletMoney()">Add Money</button>
+</div>
+
+
+  <!-- PRODUCTS -->
+  <div>
+    <h3>Products</h3>
+    <div id="products"></div>
+  </div>
+
+  <!-- ORDERS -->
+  <div style="margin-top:28px;">
+    <h3>Live Orders</h3>
+    <div id="orders"></div>
+  </div>
+
+</div>
 
 <script>
-
 const BASE = "http://localhost:3000";
 
-// ================= ADD PRODUCT =================
+const authHeaders = {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${token}`
+};
+
+function logout() {
+  localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  window.location.href = "index.html";
+}
+
 function addProduct() {
-  const name = document.getElementById("name").value;
+  const name = document.getElementById("name").value.trim();
   const price = document.getElementById("price").value;
   const stock = document.getElementById("stock").value;
 
+  if (!name || !price || !stock) {
+    showToast("Fill all fields", "error");
+    return;
+  }
+
   fetch(BASE + "/add-product", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: authHeaders,
     body: JSON.stringify({ name, price, stock })
   })
   .then(res => res.json())
   .then(data => {
-    alert(data.message);
+    showToast(data.message, data.success ? "success" : "error");
     fetchProducts();
   });
 }
 
-// ================= FETCH PRODUCTS =================
+function updateStock(id, stock) {
+  fetch(BASE + "/update-stock", {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ id, stock })
+  })
+  .then(res => res.json())
+  .then(data => {
+    showToast(data.message, data.success ? "success" : "error");
+    fetchProducts();
+  });
+}
+
+function changeStock(id, change) {
+  const input = document.getElementById("stock_" + id);
+  let newStock = Number(input.value) + change;
+
+  if (newStock < 0) newStock = 0;
+
+  updateStock(id, newStock);
+}
+
 function fetchProducts() {
   fetch(BASE + "/products")
     .then(res => res.json())
     .then(data => {
-      const list = document.getElementById("products");
-      list.innerHTML = "";
+      document.getElementById("productCount").innerText = data.length;
 
-      data.forEach(p => {
+      const container = document.getElementById("products");
+      container.innerHTML = "";
 
-        const li = document.createElement("li");
+      data.forEach(product => {
+        const div = document.createElement("div");
+        div.className = "product-card";
 
-        li.innerHTML = `
-          ${p.name} ₹${p.price} | Stock: 
-          <input type="number" value="${p.stock}" id="stock_${p.id}" style="width:60px">
-          
-          <button onclick="updateStock(${p.id})">Set</button>
-          <button onclick="changeStock(${p.id}, 1)">+</button>
-          <button onclick="changeStock(${p.id}, -1)">-</button>
+        div.innerHTML = `
+          <strong>${product.name}</strong><br>
+          ₹${product.price}<br><br>
+
+          <div class="qty-row">
+            <button onclick="changeStock(${product.id}, -1)">-</button>
+            <input id="stock_${product.id}" value="${product.stock}">
+            <button onclick="changeStock(${product.id}, 1)">+</button>
+          </div>
+
+          <button style="margin-top:12px;"
+            onclick="updateStock(${product.id}, document.getElementById('stock_${product.id}').value)">
+            Update Stock
+          </button>
         `;
 
-        list.appendChild(li);
+        container.appendChild(div);
       });
     });
 }
 
-// ================= FETCH ORDERS =================
+function cancelItem(itemId) {
+  fetch(BASE + "/cancel-item", {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ item_id: itemId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    showToast(data.message, data.success ? "success" : "error");
+    fetchOrders();
+    fetchProducts();
+  });
+}
+
+function addWalletMoney() {
+  const phone = document.getElementById("walletPhone").value.trim();
+  const amount = Number(document.getElementById("walletAmount").value);
+
+  if (!phone || !amount || amount <= 0) {
+    showToast("Enter valid details", "error");
+    return;
+  }
+
+  fetch(BASE + "/find-user-by-phone/" + phone)
+    .then(res => res.json())
+    .then(user => {
+
+      if (!user.success) {
+  showToast(user.message, "error");
+  return;
+}
+
+      fetch(BASE + "/add-money", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          id: user.user.id,
+          amount
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        showToast(data.message, data.success ? "success" : "error");
+      });
+
+    });
+}
+
+
+function adminPickup(orderId) {
+  fetch(BASE + "/admin-pickup", {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ order_id: orderId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    showToast(data.message, data.success ? "success" : "error");
+    fetchOrders();
+  });
+}
+
 function fetchOrders() {
   fetch(BASE + "/admin-orders")
     .then(res => res.json())
     .then(data => {
 
-      const list = document.getElementById("orders");
-      list.innerHTML = "";
+      let pending = 0;
+      let completed = 0;
+      let cancelled = 0;
 
       const grouped = {};
+      const container = document.getElementById("orders");
+      container.innerHTML = "";
 
-      data.forEach(o => {
-        if (!grouped[o.token]) {
-          grouped[o.token] = [];
+      data.forEach(order => {
+        if (!grouped[order.token]) {
+          grouped[order.token] = [];
         }
-        grouped[o.token].push(o);
+
+        grouped[order.token].push(order);
       });
 
       Object.keys(grouped).forEach(token => {
+        const items = grouped[token];
+        const orderStatus = items[0].order_status;
+        const orderId = items[0].order_id;
 
-        const li = document.createElement("li");
-        li.style.marginBottom = "15px";
+        let allCancelled = true;
 
-        const title = document.createElement("div");
-        title.innerText = `Token ${token}`;
-        title.style.fontWeight = "bold";
+        if (orderStatus === "picked_up") completed++;
+        else if (orderStatus === "timeout") cancelled++;
+        else pending++;
 
-        li.appendChild(title);
+        const div = document.createElement("div");
+        div.className = "order-card";
 
-        let orderId = null;
-        let orderStatus = null;
+        let itemHTML = "";
 
-        grouped[token].forEach(item => {
+        items.forEach(item => {
+          if (item.item_status !== "cancelled") {
+            allCancelled = false;
+          }
 
-          if (!orderId) orderId = item.order_id;
-          if (!orderStatus) orderStatus = item.order_status;
-
-          const div = document.createElement("div");
-
-          // ✅ ONLY show cancel if order is NOT given
-          const showCancel =
-            item.item_status === "pending" &&
-            orderStatus !== "given" &&
-            orderStatus !== "picked_up";
-
-          div.innerHTML = `
-            ${item.name} x${item.quantity}
-            ${item.item_status === "cancelled" ? "(cancelled)" : ""}
-            ${
-              showCancel
-              ? `<button onclick="cancelItem(${item.item_id})">Cancel 1</button>`
-              : ""
-            }
-          `;
-
-          li.appendChild(div);
+         itemHTML += `
+  <div style="margin-bottom:12px;">
+    ${item.name} x${item.quantity}
+    ${
+      item.item_status === "cancelled"
+        ? `<span class="badge danger">Cancelled</span>`
+        : orderStatus === "picked_up"
+          ? `<span class="badge success">Completed</span>`
+          : `<button onclick="cancelItem(${item.item_id})">Cancel Item</button>`
+    }
+  </div>
+`;
         });
 
-        // ✅ ONLY show "Mark Given" if not already given
-        if (orderStatus !== "given" && orderStatus !== "picked_up") {
-          const pickupBtn = document.createElement("button");
-          pickupBtn.innerText = "Mark Given";
-          pickupBtn.onclick = () => adminPickup(orderId);
+        let pickupButton = "";
 
-          li.appendChild(pickupBtn);
+        if (!allCancelled && orderStatus !== "picked_up") {
+          pickupButton = `
+            <button onclick="adminPickup(${orderId})">
+              Mark Given
+            </button>
+          `;
         }
 
-        list.appendChild(li);
+        div.innerHTML = `
+          <strong>Token #${token}</strong><br><br>
+          ${itemHTML}
+          ${pickupButton}
+        `;
+
+        container.appendChild(div);
       });
+
+      document.getElementById("pendingCount").innerText = pending;
+      document.getElementById("completedCount").innerText = completed;
+      document.getElementById("cancelledCount").innerText = cancelled;
     });
 }
-// ================= CANCEL ITEM =================
-function cancelItem(itemId) {
-  fetch(BASE + "/cancel-item", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ item_id: itemId })
-  })
-  .then(res => res.json())
-  .then(data => {
-    alert(data.message);
-    fetchOrders();
-    fetchProducts();
-  });
-}
 
-// ================= ADMIN PICKUP =================
-function adminPickup(orderId) {
-  fetch(BASE + "/admin-pickup", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ order_id: orderId })
-  })
-  .then(res => res.json())
-  .then(data => {
-    alert(data.message);
-    fetchOrders();
-  });
-}
-
-// SET STOCK DIRECTLY
-function updateStock(id) {
-  const stock = document.getElementById(`stock_${id}`).value;
-
-  fetch(BASE + "/update-stock", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, stock })
-  })
-  .then(res => res.json())
-  .then(data => {
-    alert(data.message);
-    fetchProducts();
-  });
-}
-
-// INCREMENT / DECREMENT
-function changeStock(id, change) {
-  const input = document.getElementById(`stock_${id}`);
-  let newStock = Number(input.value) + change;
-
-  if (newStock < 0) newStock = 0;
-
-  fetch(BASE + "/update-stock", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, stock: newStock })
-  })
-  .then(res => res.json())
-  .then(() => {
-    fetchProducts();
-  });
-}
-
-
-// ================= INIT =================
 fetchProducts();
 fetchOrders();
-
 </script>
 
 </body>

@@ -1,265 +1,318 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Canteen App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Canteen</title>
   <link rel="stylesheet" href="app.css">
 </head>
+<div id="toast" class="toast"></div>
 <body>
+
+<script>
+
+//alert
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
+
+  toast.innerText = message;
+  toast.className = `toast show ${type}`;
+
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
+}
+
+
+const user = JSON.parse(localStorage.getItem("user"));
+const token = localStorage.getItem("token");
+
+if (!user || !token) {
+  showToast("Please login first", "error");
+  window.location.href = "index.html";
+}
+</script>
 
 <div class="container">
 
-  <!-- TOP BAR -->
-  <div class="topbar">
-    <div>Canteen App</div>
-    <div class="logout" onclick="logout()">Logout</div>
+  <!-- HERO -->
+  <div class="hero-card">
+    <div class="hero-title">Welcome back, <span id="userName"></span></div>
+    <div class="hero-subtitle">Order quickly from Smart Canteen.</div>
+
+    <div class="wallet-balance">
+      ₹<span id="walletBalance">0</span>
+    </div>
+
+    <div class="hero-actions">
+      <button onclick="goToHistory()">View Orders</button>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
   </div>
 
-  <!-- USER INFO -->
-  <div id="userInfo"></div>
+  <div class="layout">
 
-  <!-- WALLET -->
-  <div class="card">
-    <h3>Add Money</h3>
-    <input id="money" placeholder="Amount">
-    <button onclick="addMoney()">Add</button>
+    <!-- MENU -->
+    <div>
+      <div class="menu-grid" id="products"></div>
+    </div>
+
+    <!-- CART -->
+    <div class="cart-panel">
+      <div class="cart-summary">
+        <div>
+          <strong>Cart</strong><br>
+          <span id="cartSummary">0 items • ₹0</span>
+        </div>
+        <button onclick="toggleCart()">View</button>
+      </div>
+
+      <div class="cart-items" id="cartItems"></div>
+    </div>
+
   </div>
-
-  <!-- MENU -->
-  <div class="card">
-    <h3>Menu</h3>
-    <div id="menu"></div>
-  </div>
-
-  <!-- CART -->
-  <div class="card">
-    <h3>Cart</h3>
-    <ul id="cart"></ul>
-    <p id="total"></p>
-    <button class="order-btn" onclick="placeOrder()">Order Now</button>
-  </div>
-
-  <!-- PAST ORDERS -->
-  <div class="card">
-    <h3>Past Orders</h3>
-    <ul id="orders"></ul>
-  </div>
-
-  <!-- RESULT -->
-  <h3 id="orderResult"></h3>
 
 </div>
 
 <script>
-
-// USER
-let user = JSON.parse(localStorage.getItem("user"));
-
-if (!user) {
-  alert("Please login first");
-  window.location.href = "index.html";
-}
-
-// ================= FETCH ORDERS =================
-function fetchOrders() {
-  fetch(`http://192.168.79.1:3000/user-orders/${user.id}`)
-    .then(res => res.json())
-    .then(data => {
-
-      const list = document.getElementById("orders");
-      list.innerHTML = "";
-
-      const tokens = Object.keys(data);
-
-      if (tokens.length === 0) {
-        list.innerHTML = "<p>No orders yet</p>";
-        return;
-      }
-
-      tokens.forEach(token => {
-        const order = data[token];
-
-        const li = document.createElement("li");
-
-        li.innerText =
-          `Token ${token} | ${order.items.join(", ")} | ${order.final_status.toUpperCase()} | ${new Date(order.time).toLocaleString()}`;
-
-        list.appendChild(li);
-      });
-    });
-}
-
-// LOGOUT
-function logout() {
-  localStorage.removeItem("user");
-  window.location.href = "index.html";
-}
-
-// UPDATE USER INFO
-function updateUserInfo() {
-  document.getElementById("userInfo").innerText =
-    `Name: ${user.name} | Balance: ₹${user.wallet_balance} | User ID: ${user.id}`;
-}
-
-// ================= FETCH MENU =================
-function fetchMenu() {
-  fetch("http://192.168.79.1:3000/products")
-    .then(res => res.json())
-    .then(data => {
-      const menuDiv = document.getElementById("menu");
-      menuDiv.innerHTML = "";
-
-      data.forEach(product => {
-
-        const div = document.createElement("div");
-        div.className = "menu-item";
-
-        div.innerHTML = `
-          <b>${product.name}</b><br>
-          ₹${product.price} | Stock: ${product.stock}
-          
-          <input type="number" id="qty_${product.id}" value="1" min="1">
-
-          <button onclick="addToCart('${product.name}', ${product.price}, 'qty_${product.id}')">
-            Add to Cart
-          </button>
-        `;
-
-        menuDiv.appendChild(div);
-      });
-    });
-}
-
-// ================= FETCH USER =================
-function fetchUser() {
-  fetch(`http://192.168.79.1:3000/user/${user.id}`)
-    .then(res => res.json())
-    .then(data => {
-      user = data;
-      localStorage.setItem("user", JSON.stringify(user));
-      updateUserInfo();
-    });
-}
-
-// INIT
-fetchUser();
-fetchOrders();
-fetchMenu();
-
-// ================= CART =================
+const BASE = "http://localhost:3000";
+let products = [];
 let cart = [];
+let cartVisible = false;
 
-function addToCart(item, price, qtyId) {
-  const qty = Number(document.getElementById(qtyId).value);
+document.getElementById("userName").innerText = user.name;
 
-  const existing = cart.find(c => c.item === item);
-
-  if (existing) {
-    existing.qty += qty;
-  } else {
-    cart.push({ item, price, qty });
-  }
-
-  renderCart();
+function fetchWallet() {
+  fetch(BASE + "/user/" + user.id)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("walletBalance").innerText = data.wallet_balance;
+    });
 }
 
-function renderCart() {
-  const list = document.getElementById("cart");
-  list.innerHTML = "";
+function fetchProducts() {
+  fetch(BASE + "/products")
+    .then(res => res.json())
+    .then(data => {
+      products = data;
+      renderProducts();
+    });
+}
 
-  let total = 0;
+function renderProducts() {
+  const container = document.getElementById("products");
+  container.innerHTML = "";
 
-  cart.forEach((c, index) => {
-    total += c.price * c.qty;
+  products.forEach(product => {
+    const div = document.createElement("div");
+    div.className = "menu-item";
 
-    const li = document.createElement("li");
+    div.innerHTML = `
+      <div style="
+        width:100%;
+        height:140px;
+        border-radius:18px;
+        background:rgba(127,127,127,0.12);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        margin-bottom:14px;
+        font-size:2rem;
+      ">🍽️</div>
 
-    li.innerHTML = `
-      <b>${c.item}</b><br>
-      Qty: ${c.qty} | ₹${c.price * c.qty}
-
-      <div style="display:flex; gap:6px; margin-top:6px;">
-        <button class="small" onclick="increaseQty(${index})">+</button>
-        <button class="small" onclick="decreaseQty(${index})">-</button>
-        <button class="small danger" onclick="removeItem(${index})">Remove</button>
+      <h4>${product.name}</h4>
+      <div class="menu-meta">Freshly prepared</div>
+      <div><strong>₹${product.price}</strong></div>
+      <div class="menu-meta">
+        ${product.stock > 0 ? "In Stock" : "Out of Stock"}
       </div>
+
+      <div class="qty-row">
+        <button onclick="changeQty(${product.id}, -1)">-</button>
+        <input id="qty_${product.id}" value="1" readonly>
+        <button onclick="changeQty(${product.id}, 1)">+</button>
+      </div>
+
+      <button style="margin-top:14px;" onclick="addToCart(${product.id})">
+        Add to Cart
+      </button>
     `;
 
-    list.appendChild(li);
-  });
-
-  document.getElementById("total").innerText = "Total: ₹" + total;
-}
-
-function increaseQty(i) { cart[i].qty++; renderCart(); }
-function decreaseQty(i) {
-  cart[i].qty--;
-  if (cart[i].qty <= 0) cart.splice(i, 1);
-  renderCart();
-}
-function removeItem(i) { cart.splice(i, 1); renderCart(); }
-
-// ================= ADD MONEY =================
-function addMoney() {
-  const amount = document.getElementById("money").value;
-
-  fetch("http://192.168.79.1:3000/add-money", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id: user.id, amount })
-  })
-  .then(res => res.json())
-  .then(data => {
-    alert(data.message);
-    fetchUser();
+    container.appendChild(div);
   });
 }
 
-// ================= ORDER =================
-function placeOrder() {
+function changeQty(id, change) {
+  const input = document.getElementById("qty_" + id);
+  let qty = Number(input.value) + change;
 
-  if (cart.length === 0) {
-    alert("Cart is empty");
+  if (qty < 1) qty = 1;
+
+  input.value = qty;
+}
+
+function addToCart(productId) {
+  const qty = Number(document.getElementById("qty_" + productId).value);
+  const product = products.find(p => Number(p.id) === Number(productId));
+
+  if (!product || product.stock <= 0) {
+    showToast("Out of stock", "error");
     return;
   }
 
-  if (!confirm("⚠️ Strictly no refund after placing order. Continue?")) return;
+  const existing = cart.find(item => Number(item.id) === Number(productId));
 
-  fetch("http://192.168.79.1:3000/generate-token")
+  if (existing) {
+    existing.quantity += qty;
+  } else {
+    cart.push({
+      ...product,
+      quantity: qty
+    });
+  }
+
+  renderCart();
+  document.getElementById("qty_" + productId).value = 1;
+}
+
+function renderCart() {
+  const container = document.getElementById("cartItems");
+  container.innerHTML = "";
+
+  let total = 0;
+  let count = 0;
+
+  cart.forEach(item => {
+    total += item.price * item.quantity;
+    count += item.quantity;
+
+    const div = document.createElement("div");
+    div.className = "order-card";
+
+    div.innerHTML = `
+  <strong>${item.name}</strong><br>
+  ₹${item.price * item.quantity}
+
+  <div class="qty-row" style="margin-top:12px;">
+    <button onclick="updateCartQty(${item.id}, -1)">-</button>
+    <input value="${item.quantity}" readonly>
+    <button onclick="updateCartQty(${item.id}, 1)">+</button>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button onclick="removeFromCart(${item.id})" class="logout">
+      Remove
+    </button>
+  </div>
+`;
+
+    container.appendChild(div);
+  });
+
+  document.getElementById("cartSummary").innerText =
+    `${count} items • ₹${total}`;
+
+  if (cart.length > 0) {
+    const orderBtn = document.createElement("button");
+    orderBtn.innerText = "Place Order";
+    orderBtn.style.width = "100%";
+    orderBtn.onclick = placeOrder;
+    container.appendChild(orderBtn);
+  }
+}
+
+function removeFromCart(id) {
+  cart = cart.filter(item => item.id !== id);
+  renderCart();
+}
+
+function toggleCart() {
+  const cartDiv = document.getElementById("cartItems");
+  cartVisible = !cartVisible;
+
+  if (cartVisible) {
+    cartDiv.classList.add("active");
+  } else {
+    cartDiv.classList.remove("active");
+  }
+}
+
+function placeOrder() {
+  if (cart.length === 0) {
+    showToast("Cart is empty", "error");
+    return;
+  }
+
+  fetch(BASE + "/generate-token")
     .then(res => res.json())
-    .then(data => {
+    .then(tokenData => {
 
-      const token = data.token;
-
-      fetch("http://192.168.79.1:3000/order", {
+      fetch(BASE + "/order", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           user_id: user.id,
           cart: cart,
-          token: token
+          token: tokenData.token
         })
       })
       .then(res => res.json())
       .then(data => {
 
         if (!data.success) {
-          alert(data.message);
+          showToast(data.message, "error");
           return;
         }
 
-        fetchUser();
-        fetchOrders();
-
-        document.getElementById("orderResult").innerText =
-          `Order Confirmed!\nToken: ${token}\nUser ID: ${user.id}\n\n⏱ You have 20 minutes to pick up your order`;
-
         cart = [];
         renderCart();
+        fetchWallet();
+        fetchProducts();
+
+        showToast("Order Confirmed! Token #" + data.token, "success");
       });
 
     });
 }
 
+function goToHistory() {
+  window.location.href = "history.html";
+}
+
+function logout() {
+  localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  window.location.href = "index.html";
+}
+
+function updateCartQty(id, change) {
+  const item = cart.find(i => Number(i.id) === Number(id));
+
+  if (!item) return;
+
+  const newQty = item.quantity + change;
+
+  if (newQty <= 0) {
+    removeFromCart(id);
+    return;
+  }
+
+  const product = products.find(p => Number(p.id) === Number(id));
+
+  if (product && newQty > product.stock) {
+    showToast("Not enough stock", "error");
+    return;
+  }
+
+  item.quantity = newQty;
+  renderCart();
+}
+
+
+fetchWallet();
+fetchProducts();
 </script>
 
 </body>

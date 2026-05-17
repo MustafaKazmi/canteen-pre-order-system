@@ -1,56 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Order History</title>
+  <link rel="stylesheet" href="app.css">
 </head>
+<div id="toast" class="toast"></div>
 <body>
 
-<h2>📜 Order History</h2>
-
-<button onclick="goBack()">⬅ Back</button>
-
-<ul id="orders"></ul>
-
 <script>
+  //alert
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
 
-let user = JSON.parse(localStorage.getItem("user"));
+  toast.innerText = message;
+  toast.className = `toast show ${type}`;
 
-if (!user) {
-  alert("Please login first");
-  window.location.href = "index.html";
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
 }
 
-// FETCH ORDERS
-function fetchOrders() {
-  fetch(`http://localhost:3000/user-orders/${user.id}`)
+const user = JSON.parse(localStorage.getItem("user"));
+const token = localStorage.getItem("token");
+
+if (!user || !token) {
+  showToast("Please login first", "error");
+
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 1200);
+}
+</script>
+
+<div class="container">
+
+  <div class="hero-card">
+    <div class="hero-title">Your Orders</div>
+    <div class="hero-subtitle">Track all your Smart Canteen activity.</div>
+
+    <div class="hero-actions">
+      <button onclick="goBack()">Back to Menu</button>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div id="historyList"></div>
+
+</div>
+
+<script>
+const BASE = "http://localhost:3000";
+
+function getBadge(status) {
+  if (status === "picked_up") {
+    return `<span class="badge success">Picked Up</span>`;
+  }
+
+  if (status === "cancelled") {
+    return `<span class="badge danger">Cancelled</span>`;
+  }
+
+  if (status === "timeout") {
+    return `<span class="badge danger">Timed Out</span>`;
+  }
+
+  return `<span class="badge muted">Pending</span>`;
+}
+
+function formatDate(dateString) {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+
+function fetchHistory() {
+  fetch(BASE + "/user-orders/" + user.id)
     .then(res => res.json())
     .then(data => {
-      const list = document.getElementById("orders");
-      list.innerHTML = "";
 
-      if (data.length === 0) {
-        list.innerHTML = "<p>No orders yet</p>";
+      const container = document.getElementById("historyList");
+      container.innerHTML = "";
+
+      const orders = Object.values(data);
+
+      if (!orders.length) {
+        container.innerHTML = `
+          <div class="order-card">
+            <strong>No orders yet</strong>
+          </div>
+        `;
         return;
       }
 
-      data.forEach(order => {
-        const li = document.createElement("li");
+      orders.forEach(order => {
+        const div = document.createElement("div");
+        div.className = "order-card";
 
-        li.innerText =
-          `Token: ${order.token} | Item: ${order.item} | ₹${order.price} | Status: ${order.status || "pending"}`;
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div>
+              <strong>Token #${order.order_id}</strong><br>
+              <span class="menu-meta">${formatDate(order.time)}</span>
+            </div>
+            ${getBadge(order.final_status)}
+          </div>
 
-        list.appendChild(li);
+          <div style="margin-top:16px;">
+            ${order.items.join("<br>")}
+          </div>
+        `;
+
+        container.appendChild(div);
       });
+
     });
 }
 
-fetchOrders();
-
-// BACK BUTTON
 function goBack() {
   window.location.href = "app.html";
 }
 
+function logout() {
+  localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  window.location.href = "index.html";
+}
+
+fetchHistory();
 </script>
 
 </body>

@@ -1,18 +1,26 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Login</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Canteen Login</title>
   <link rel="stylesheet" href="app.css">
 </head>
-
+<div id="toast" class="toast"></div>
 <body>
 
 <div class="auth-container">
   <div class="auth-card">
 
-    <div class="auth-title">Login</div>
+    <div class="auth-title">Smart Canteen</div>
+    <div class="hero-subtitle">Fast campus ordering, beautifully simple.</div>
 
-    <input id="phone" placeholder="Phone Number">
+    <div class="hero-actions">
+      <button id="passwordTab" onclick="showPasswordLogin()">Password Login</button>
+      <button id="otpTab" class="secondary" onclick="showOTPLogin()">OTP Login</button>
+    </div>
+
+    <input id="phone" type="tel" placeholder="Phone Number">
 
     <!-- PASSWORD LOGIN -->
     <div id="passwordSection">
@@ -20,90 +28,135 @@
       <button onclick="loginWithPassword()">Login</button>
     </div>
 
-    <button class="secondary" onclick="showOTP()">Login with OTP</button>
-
     <!-- OTP LOGIN -->
     <div id="otpSection" style="display:none;">
-      <button class="otp-btn" onclick="sendLoginOTP()">Send OTP</button>
-      <input id="loginOtp" placeholder="Enter OTP">
-      <button onclick="loginWithOTP()">Verify OTP</button>
+      <button class="secondary" onclick="sendOTP()">Send OTP</button>
+      <input id="loginOtp" type="text" placeholder="Enter OTP">
+      <button onclick="loginWithOTP()">Verify & Login</button>
     </div>
 
-    <div class="auth-switch">
-      New user?
-      <button onclick="goToSignup()">Sign Up</button>
-    </div>
+    <button class="secondary" onclick="goToSignup()">Create New Account</button>
 
   </div>
 </div>
 
 <script>
-// SWITCH TO OTP MODE
-function showOTP() {
+
+  //alert
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
+
+  toast.innerText = message;
+  toast.className = `toast show ${type}`;
+
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
+}
+
+const BASE = "http://localhost:3000";
+
+function showPasswordLogin() {
+  document.getElementById("passwordSection").style.display = "block";
+  document.getElementById("otpSection").style.display = "none";
+
+  document.getElementById("passwordTab").classList.remove("secondary");
+  document.getElementById("otpTab").classList.add("secondary");
+}
+
+function showOTPLogin() {
   document.getElementById("passwordSection").style.display = "none";
   document.getElementById("otpSection").style.display = "block";
+
+  document.getElementById("otpTab").classList.remove("secondary");
+  document.getElementById("passwordTab").classList.add("secondary");
 }
 
-// GO TO SIGNUP
-function goToSignup() {
-  window.location.href = "signup.html";
-}
+function sendOTP() {
+  const phone = document.getElementById("phone").value.trim();
 
-// LOGIN WITH PASSWORD
-function loginWithPassword() {
-  const phone = document.getElementById("phone").value;
-  const password = document.getElementById("password").value;
+  if (phone.length !== 10) {
+    showToast("Enter valid 10-digit phone number", "error");
+    return;
+  }
 
-  fetch("http://localhost:3000/login-password", {
+  fetch(BASE + "/send-otp", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ phone, password })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      localStorage.setItem("user", JSON.stringify(data.user));
-      window.location.href = "app.html";
-    } else {
-      alert(data.message);
-    }
-  });
-}
-
-// SEND OTP
-function sendLoginOTP() {
-  const phone = document.getElementById("phone").value;
-
-  fetch("http://localhost:3000/send-otp", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone })
   })
   .then(res => res.json())
   .then(() => {
-    alert("OTP sent (check terminal)");
+    showToast("OTP sent successfully", "success");
   });
 }
 
-// VERIFY OTP
-function loginWithOTP() {
-  const phone = document.getElementById("phone").value;
-  const otp = document.getElementById("loginOtp").value;
+function loginWithPassword() {
+  const phone = document.getElementById("phone").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-  fetch("http://localhost:3000/login-otp", {
+  if (!phone || !password) {
+    showToast("Fill all fields", "error");
+    return;
+  }
+
+  fetch(BASE + "/login-password", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) {
+      showToast(data.message || "Login failed", "error");
+      return;
+    }
+
+    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.token);
+
+    if (data.user.is_admin) {
+      window.location.href = "admin.html";
+    } else {
+      window.location.href = "app.html";
+    }
+  });
+}
+
+function loginWithOTP() {
+  const phone = document.getElementById("phone").value.trim();
+  const otp = document.getElementById("loginOtp").value.trim();
+
+  if (!phone || !otp) {
+    showToast("Fill all fields", "error");
+    return;
+  }
+
+  fetch(BASE + "/login-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, otp })
   })
   .then(res => res.json())
   .then(data => {
-    if (data.success) {
-      localStorage.setItem("user", JSON.stringify(data.user));
-      window.location.href = "app.html";
+    if (!data.success) {
+      showToast(data.message || "Invalid OTP", "error");
+      return;
+    }
+
+    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.token);
+
+    if (data.user.is_admin) {
+      window.location.href = "admin.html";
     } else {
-      alert("Invalid OTP");
+      window.location.href = "app.html";
     }
   });
+}
+
+function goToSignup() {
+  window.location.href = "signup.html";
 }
 </script>
 

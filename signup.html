@@ -1,81 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Sign Up</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account</title>
   <link rel="stylesheet" href="app.css">
 </head>
-
+<div id="toast" class="toast"></div>
 <body>
 
 <div class="auth-container">
   <div class="auth-card">
 
-    <div class="auth-title">Sign Up</div>
+    <div class="auth-title">Create Account</div>
+    <div class="hero-subtitle">Join Smart Canteen in seconds.</div>
 
-    <input id="name" placeholder="Name">
+    <input id="name" type="text" placeholder="Full Name">
 
-    <input id="phone" placeholder="Phone Number" oninput="checkPhone()">
-    <button id="otpBtn" class="otp-btn" onclick="sendOTP()" disabled>Send OTP</button>
+    <input id="phone" type="tel" placeholder="Phone Number" oninput="checkPhone()">
 
-    <input id="otp" placeholder="Enter OTP">
+    <button id="otpBtn" class="secondary" onclick="sendOTP()" disabled>
+      Send OTP
+    </button>
 
-    <input id="password" type="password" placeholder="Password">
+    <input id="otp" type="text" placeholder="Enter OTP">
+
+    <input id="password" type="password" placeholder="Create Password">
 
     <button onclick="signup()">Create Account</button>
 
-    <div class="auth-switch">
-      Already a user?
-      <button onclick="goToLogin()">Login</button>
-    </div>
+    <button class="secondary" onclick="goToLogin()">Already have an account? Login</button>
 
   </div>
 </div>
 
 <script>
 
-// ENABLE OTP BUTTON ONLY WHEN 10 DIGITS
+  //alert
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
+
+  toast.innerText = message;
+  toast.className = `toast show ${type}`;
+
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 3000);
+}
+
+const BASE = "http://localhost:3000";
+
 function checkPhone() {
-  const phone = document.getElementById("phone").value;
+  const phone = document.getElementById("phone").value.trim();
   document.getElementById("otpBtn").disabled = phone.length !== 10;
 }
 
-// SEND OTP
 function sendOTP() {
-  const phone = document.getElementById("phone").value;
+  const phone = document.getElementById("phone").value.trim();
 
-  fetch("http://localhost:3000/send-otp", {
+  if (phone.length !== 10) {
+    showToast("Enter valid 10-digit phone number", "error");
+    return;
+  }
+
+  fetch(BASE + "/send-otp", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({ phone })
   })
   .then(res => res.json())
   .then(() => {
-    alert("OTP sent (check terminal)");
+    showToast("OTP sent successfully", "success");
   });
 }
 
-// SIGNUP
 function signup() {
   const name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
-  const password = document.getElementById("password").value.trim();
   const otp = document.getElementById("otp").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-  // ✅ FRONTEND VALIDATION
-  if (!name || !phone || !password || !otp) {
-    alert("Please fill all fields");
+  if (!name || !phone || !otp || !password) {
+    showToast("Please fill all fields", "error");
     return;
   }
 
   if (phone.length !== 10) {
-    alert("Phone number must be 10 digits");
+    showToast("Phone number must be 10 digits", "error");
     return;
   }
 
-  fetch("http://localhost:3000/signup", {
+  fetch(BASE + "/signup", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ name, phone, password, otp })
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name,
+      phone,
+      otp,
+      password
+    })
   })
   .then(res => res.json())
   .then(data => {
@@ -84,16 +111,17 @@ function signup() {
       return;
     }
 
-    alert("Signup successful! Your User ID: " + data.user_id);
-    window.location.href = "index.html";
+    showToast("Account created successfully", "success");
+
+setTimeout(() => {
+  window.location.href = "index.html";
+}, 1200);
   });
 }
 
-// BACK TO LOGIN
 function goToLogin() {
   window.location.href = "index.html";
 }
-
 </script>
 
 </body>

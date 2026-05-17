@@ -2,6 +2,9 @@ console.log("RUNNING NEW CODE");
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const app = express();
 app.use(express.json());
@@ -23,14 +26,90 @@ db.connect((err) => {
   }
 });
 
+
 const otpStore = {};
+
+
+// =========================
+// JWT TOKEN GENERATION
+// =========================
+function generateToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      phone: user.phone,
+      is_admin: user.is_admin
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+// =========================
+// ADMIN AUTH MIDDLEWARE
+// =========================
+function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({
+      success: false,
+      message: "Access denied"
+    });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "Token missing"
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+
+  } catch (err) {
+    return res.status(403).json({
+      success: false,
+      message: "Invalid token"
+    });
+  }
+}
+
+// =========================
+// ADMIN CHECK MIDDLEWARE
+// =========================
+function verifyAdmin(req, res, next) {
+
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required"
+    });
+  }
+
+  if (!req.user.is_admin) {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required"
+    });
+  }
+
+  next();
+}
 
 // =========================
 // SIGNUP
 // =========================
 app.post("/signup", (req, res) => {
+
   const { name, phone, password, otp } = req.body;
 
+  // validation
   if (!name || !phone || !password || !otp) {
     return res.json({
       success: false,
@@ -45,12 +124,18 @@ app.post("/signup", (req, res) => {
     });
   }
 
-  // check if phone exists
+  // check existing user
   db.query(
     "SELECT * FROM users WHERE phone = ?",
     [phone],
-    (err, result) => {
-      if (err) return res.json({ success: false, message: err.message });
+    async (err, result) => {
+
+      if (err) {
+        return res.json({
+          success: false,
+          message: err.message
+        });
+      }
 
       if (result.length > 0) {
         return res.json({
@@ -59,7 +144,7 @@ app.post("/signup", (req, res) => {
         });
       }
 
-      // OTP CHECK
+      // OTP check
       if (otpStore[phone] != otp) {
         return res.json({
           success: false,
@@ -67,24 +152,47 @@ app.post("/signup", (req, res) => {
         });
       }
 
-      // insert user
-      db.query(
-        "INSERT INTO users (name, phone, password, wallet_balance) VALUES (?, ?, ?, 0)",
-        [name, phone, password],
-        (err, result) => {
-          if (err) return res.json({ success: false, message: err.message });
+      try {
 
-          delete otpStore[phone]; // cleanup
+        // hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-          res.json({
-            success: true,
-            message: "Signup successful",
-            user_id: result.insertId
-          });
-        }
-      );
+        // insert user
+        db.query(
+          "INSERT INTO users (name, phone, password, wallet_balance) VALUES (?, ?, ?, 0)",
+          [name, phone, hashedPassword],
+          (err, result) => {
+
+            if (err) {
+              return res.json({
+                success: false,
+                message: err.message
+              });
+            }
+
+            // remove OTP after signup
+            delete otpStore[phone];
+
+            res.json({
+              success: true,
+              message: "Signup successful",
+              user_id: result.insertId
+            });
+          }
+        );
+
+      } catch (error) {
+
+        res.json({
+          success: false,
+          message: "Password hashing failed"
+        });
+
+      }
+
     }
   );
+
 });
 // =========================
 // SEND OTP (SIMULATED)
@@ -104,26 +212,41 @@ app.post("/send-otp", (req, res) => {
 // =========================
 // LOGIN WITH PASSWORD
 // =========================
-app.post("/login-password", (req, res) => {
+app.post("/login-password", async (req, res) => {
   const { phone, password } = req.body;
 
   db.query(
-    "SELECT * FROM users WHERE phone = ? AND password = ?",
-    [phone, password],
-    (err, result) => {
+    "SELECT * FROM users WHERE phone = ?",
+    [phone],
+    async (err, result) => {
+
       if (err) return res.send(err);
 
       if (result.length === 0) {
+        return res.json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      const user = result[0];
+
+      const isMatch = await bcrypt.compare(password, user.password);
+
+      if (!isMatch) {
         return res.json({
           success: false,
           message: "Invalid credentials"
         });
       }
 
-      res.json({
-        success: true,
-        user: result[0]
-      });
+      const token = generateToken(user);
+
+res.json({
+  success: true,
+  token,
+  user
+});
     }
   );
 });
@@ -134,23 +257,39 @@ app.post("/login-password", (req, res) => {
 app.post("/login-otp", (req, res) => {
   const { phone, otp } = req.body;
 
+  // 1. Check OTP from memory
+  if (otpStore[phone] != otp) {
+    return res.json({
+      success: false,
+      message: "Invalid OTP"
+    });
+  }
+
+  // 2. Fetch user
   db.query(
-    "SELECT * FROM users WHERE phone = ? AND otp = ?",
-    [phone, otp],
+    "SELECT * FROM users WHERE phone = ?",
+    [phone],
     (err, result) => {
       if (err) return res.send(err);
 
       if (result.length === 0) {
         return res.json({
           success: false,
-          message: "Invalid OTP"
+          message: "User not found"
         });
       }
 
-      res.json({
-        success: true,
-        user: result[0]
-      });
+      // 3. Clear OTP after use (IMPORTANT)
+      delete otpStore[phone];
+
+      const user = result[0];
+const token = generateToken(user);
+
+res.json({
+  success: true,
+  token,
+  user
+});
     }
   );
 });
@@ -158,7 +297,7 @@ app.post("/login-otp", (req, res) => {
 // =========================
 // ADD MONEY
 // =========================
-app.post("/add-money", (req, res) => {
+app.post("/add-money",verifyToken,verifyAdmin, (req, res) => {
   const { id, amount } = req.body;
 
   db.query(
@@ -204,7 +343,7 @@ app.post("/order", (req, res) => {
         return new Promise((resolve, reject) => {
           db.query(
             "SELECT * FROM products WHERE name = ?",
-            [item.item],
+            [item.name],
             (err, productResult) => {
               if (err) return reject(err.message);
 
@@ -214,11 +353,11 @@ app.post("/order", (req, res) => {
 
               const product = productResult[0];
 
-              if (product.stock < item.qty) {
+              if (product.stock < item.quantity) {
                 return reject(`Not enough stock for ${item.item}`);
               }
 
-              totalCost += product.price * item.qty;
+              totalCost += product.price * item.quantity;
 
               resolve(product);
             }
@@ -256,7 +395,7 @@ app.post("/order", (req, res) => {
                 promises.push(new Promise((resolve, reject) => {
                   db.query(
                     "UPDATE products SET stock = stock - ? WHERE id = ?",
-                    [item.qty, product.id],
+                    [item.quantity, product.id],
                     err => err ? reject(err.message) : resolve()
                   );
                 }));
@@ -264,7 +403,7 @@ app.post("/order", (req, res) => {
                 promises.push(new Promise((resolve, reject) => {
                   db.query(
                     "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
-                    [orderId, product.id, item.qty, product.price],
+                    [orderId, product.id, item.quantity, product.price],
                     err => err ? reject(err.message) : resolve()
                   );
                 }));
@@ -405,7 +544,7 @@ app.get("/generate-token", (req, res) => {
 //admin panel stuff
 
 //add product
-app.post("/add-product", (req, res) => {
+app.post("/add-product", verifyToken, verifyAdmin, (req, res) => {
   const { name, price, stock } = req.body;
 
   db.query(
@@ -455,8 +594,8 @@ app.get("/admin-orders", (req, res) => {
 });
 
 //cancel item
-app.post("/cancel-item", (req, res) => {
-  const { item_id } = req.body;
+app.post("/cancel-item", verifyToken, verifyAdmin, (req, res) => {
+    const { item_id } = req.body;
 
   db.query(
     `SELECT oi.*, o.user_id
@@ -536,22 +675,55 @@ app.post("/cancel-item", (req, res) => {
 });
 
 //pickup confirmation
-app.post("/admin-pickup", (req, res) => {
+app.post("/admin-pickup", verifyToken, verifyAdmin, (req, res) => {
   const { order_id } = req.body;
 
   db.query(
-    "UPDATE orders_new SET status = 'picked_up' WHERE id = ?",
+    "SELECT * FROM order_items WHERE order_id = ? AND status != 'cancelled'",
     [order_id],
-    (err) => {
-      if (err) return res.json({ success: false, message: err.message });
+    (err, items) => {
 
-      res.json({ success: true, message: "Order marked as picked up" });
+      if (err) {
+        return res.json({
+          success: false,
+          message: err.message
+        });
+      }
+
+      // all items cancelled
+      if (items.length === 0) {
+        return res.json({
+          success: false,
+          message: "Cannot mark cancelled order as picked up"
+        });
+      }
+
+      // valid pickup
+      db.query(
+        "UPDATE orders_new SET status = 'picked_up' WHERE id = ?",
+        [order_id],
+        (err) => {
+
+          if (err) {
+            return res.json({
+              success: false,
+              message: err.message
+            });
+          }
+
+          res.json({
+            success: true,
+            message: "Order marked as picked up"
+          });
+        }
+      );
+
     }
   );
 });
 
 //user pickup confirmation
-app.post("/user-pickup", (req, res) => {
+app.post("/user-pickup",verifyToken, verifyAdmin, (req, res) => {
   const { order_id } = req.body;
 
   db.query(
@@ -582,8 +754,8 @@ app.post("/user-pickup", (req, res) => {
 });
 
 // ================= UPDATE STOCK =================
-app.post("/update-stock", (req, res) => {
-  const { id, stock } = req.body;
+app.post("/update-stock", verifyToken, verifyAdmin, (req, res) => {
+    const { id, stock } = req.body;
 
   db.query(
     "UPDATE products SET stock = ? WHERE id = ?",
@@ -595,6 +767,40 @@ app.post("/update-stock", (req, res) => {
     }
   );
 });
+
+// =========================
+// GET USER BY PHONE
+// =========================
+app.get("/find-user-by-phone/:phone", (req, res) => {
+  const { phone } = req.params;
+
+  db.query(
+    "SELECT id, name, phone FROM users WHERE phone = ?",
+    [phone],
+    (err, result) => {
+      if (err) {
+        return res.json({
+          success: false,
+          message: err.message
+        });
+      }
+
+      if (result.length === 0) {
+        return res.json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      res.json({
+        success: true,
+        user: result[0]
+      });
+    }
+  );
+});
+
+
 
 
 
